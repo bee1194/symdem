@@ -1,0 +1,60 @@
+version: "3"
+services:
+  app:
+    container_name: ${PROJECT_NAME}_app
+    image: ${PROJECT_NAME}_image
+    build:
+      context: ./docker/httpd
+      dockerfile: Dockerfile
+      args:
+        - WITH_XDEBUG=true
+    ports:
+      - "8060:80"
+    volumes:
+      - ./:/var/www/html
+    networks:
+      - traefik_proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.services.${PROJECT_NAME}.loadbalancer.server.port=80"
+      - "traefik.http.middlewares.${PROJECT_NAME}-redirectscheme.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.${PROJECT_NAME}-redirectscheme.redirectscheme.permanent=true"
+      - "traefik.http.routers.${PROJECT_NAME}.rule=Host(`${DOMAIN}`,`${DOMAIN2}`)"
+      - "traefik.http.routers.${PROJECT_NAME}.entrypoints=web"
+      - "traefik.http.routers.${PROJECT_NAME}.middlewares=${PROJECT_NAME}-redirectscheme"
+      - "traefik.http.routers.${PROJECT_NAME}-secure.rule=Host(`${DOMAIN}`,`${DOMAIN2}`)"
+      - "traefik.http.routers.${PROJECT_NAME}-secure.entrypoints=websecure"
+      - "traefik.http.routers.${PROJECT_NAME}-secure.service=${PROJECT_NAME}"
+      - "traefik.http.routers.${PROJECT_NAME}-secure.tls=true"
+  mysql:
+    platform: linux/amd64
+    container_name: '${PROJECT_NAME}_mysql'
+    image: 'mysql:5.7'
+    ports:
+      - '33060:3306'
+    environment:
+      MYSQL_DATABASE: '${DB_DATABASE}'
+      MYSQL_ROOT_PASSWORD: '${DB_PASSWORD}'
+    networks:
+      - traefik_proxy
+  redis:
+    image: redis:latest
+    container_name: '${PROJECT_NAME}_redis'
+    restart: always
+    ports:
+      - "6379:6379"
+    networks:
+      - traefik_proxy
+  redis_insight:
+    image: redis/redisinsight:latest
+    container_name: '${PROJECT_NAME}_redis_insight'
+    restart: always
+    ports:
+      - '5540:5540'
+    networks:
+      - traefik_proxy
+
+networks:
+  traefik_proxy:
+    external:
+      name: ${NETWORK}
